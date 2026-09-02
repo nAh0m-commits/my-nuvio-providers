@@ -30,22 +30,23 @@ VuflixScraper.prototype.getStreams = function(item) {
   var streams = [];
 
   var mediaType = item.type === 'movie' ? 'movie' : 'tv';
-  var mediaId = item.id || item.tmdbId;
+  var tmdbId = item.tmdbId || item.id;
+  var imdbId = item.imdbId;
 
-  if (!mediaId) {
+  if (!tmdbId && !imdbId) {
     return Promise.resolve(streams);
   }
 
-  var idString = mediaType + ':' + mediaId;
-  if (mediaType === 'tv' && item.season && item.episode) {
-    idString += ':' + item.season + ':' + item.episode;
-  }
+  // Construct query variants (TMDB ID and IMDb ID)
+  var queryIds = [];
+  if (tmdbId) queryIds.push(mediaType + ':' + tmdbId);
+  if (imdbId) queryIds.push(mediaType + ':' + imdbId);
 
   var prepareSession = self.sessionCookie ? Promise.resolve() : self.initSession();
 
   return prepareSession
     .then(function() {
-      var batchUrl = BASE_URL + '/api/media/batch?ids=' + idString + '&lang=en';
+      var batchUrl = BASE_URL + '/api/media/batch?ids=' + queryIds.join(',') + '&lang=en';
       var headers = Object.assign({}, DEFAULT_HEADERS);
       if (self.sessionCookie) {
         headers['Cookie'] = self.sessionCookie;
@@ -59,21 +60,19 @@ VuflixScraper.prototype.getStreams = function(item) {
     .then(function(batchData) {
       if (!batchData) return streams;
 
-      // Extract entry across common API wrapper variations
+      // Extract playback metadata across returned keys
       var mediaInfo = null;
-      if (Array.isArray(batchData)) {
-        mediaInfo = batchData[0];
-      } else if (batchData[idString]) {
-        mediaInfo = batchData[idString];
-      } else if (batchData[mediaType + ':' + mediaId]) {
-        mediaInfo = batchData[mediaType + ':' + mediaId];
-      } else if (batchData.data) {
-        mediaInfo = Array.isArray(batchData.data) ? batchData.data[0] : batchData.data;
-      } else {
-        mediaInfo = batchData;
+      for (var i = 0; i < queryIds.length; i++) {
+        if (batchData[queryIds[i]]) {
+          mediaInfo = batchData[queryIds[i]];
+          break;
+        }
       }
 
-      // Check all common parameter variations for relay token and signature
+      if (!mediaInfo) {
+        mediaInfo = Array.isArray(batchData) ? batchData[0] : (batchData.data || batchData);
+      }
+
       var relayToken = mediaInfo ? (mediaInfo.streamToken || mediaInfo.token || mediaInfo.t) : null;
       var signature = mediaInfo ? (mediaInfo.signature || mediaInfo.sig || mediaInfo.s) : null;
 
@@ -82,7 +81,7 @@ VuflixScraper.prototype.getStreams = function(item) {
 
         streams.push({
           name: 'Vuflix',
-          title: 'Vuflix - ' + mediaType.toUpperCase() + ' (Auto)',
+          title: 'Vuflix - Movie (Auto)',
           url: streamUrl,
           type: 'm3u8',
           headers: {
@@ -97,7 +96,7 @@ VuflixScraper.prototype.getStreams = function(item) {
       return streams;
     })
     .catch(function(error) {
-      console.error('[Vuflix] Stream extraction error:', error);
+      console.error('[Vuflix] Error extracting streams:', error);
       return streams;
     });
 };
