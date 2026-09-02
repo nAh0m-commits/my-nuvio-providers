@@ -1,1 +1,21 @@
-
+{
+  "id": "vuflix",
+  "name": "Vuflix",
+  "description": "Vuflix streaming with batch metadata support and stream relay proxying",
+  "version": "1.0.0",
+  "author": "Nuvio Team",
+  "supportedTypes": [
+    "movie",
+    "tv"
+  ],
+  "filename": "providers/vuflix.js",
+  "enabled": true,
+  "formats": [
+    "m3u8",
+    "mp4"
+  ],
+  "logo": "https://www.google.com/s2/favicons?domain=vuflix.co&sz=128",
+  "contentLanguage": [
+    "en"
+  ]
+}
