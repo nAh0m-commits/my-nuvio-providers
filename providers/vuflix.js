@@ -36,7 +36,6 @@ VuflixScraper.prototype.getStreams = function(item) {
     return Promise.resolve(streams);
   }
 
-  // Handle TV show episode formatting if present
   var idString = mediaType + ':' + mediaId;
   if (mediaType === 'tv' && item.season && item.episode) {
     idString += ':' + item.season + ':' + item.episode;
@@ -60,22 +59,36 @@ VuflixScraper.prototype.getStreams = function(item) {
     .then(function(batchData) {
       if (!batchData) return streams;
 
-      var mediaInfo = batchData[idString] || batchData[mediaType + ':' + mediaId] || batchData;
+      // Extract entry across common API wrapper variations
+      var mediaInfo = null;
+      if (Array.isArray(batchData)) {
+        mediaInfo = batchData[0];
+      } else if (batchData[idString]) {
+        mediaInfo = batchData[idString];
+      } else if (batchData[mediaType + ':' + mediaId]) {
+        mediaInfo = batchData[mediaType + ':' + mediaId];
+      } else if (batchData.data) {
+        mediaInfo = Array.isArray(batchData.data) ? batchData.data[0] : batchData.data;
+      } else {
+        mediaInfo = batchData;
+      }
 
-      var relayToken = mediaInfo ? (mediaInfo.streamToken || mediaInfo.t) : null;
-      var signature = mediaInfo ? (mediaInfo.signature || mediaInfo.s) : null;
+      // Check all common parameter variations for relay token and signature
+      var relayToken = mediaInfo ? (mediaInfo.streamToken || mediaInfo.token || mediaInfo.t) : null;
+      var signature = mediaInfo ? (mediaInfo.signature || mediaInfo.sig || mediaInfo.s) : null;
 
       if (relayToken && signature) {
         var streamUrl = BASE_URL + '/api/player/v-relay?t=' + encodeURIComponent(relayToken) + '&s=' + encodeURIComponent(signature);
 
         streams.push({
-          name: 'Vuflix Auto',
-          title: 'Vuflix - ' + mediaType.toUpperCase() + ' (' + (item.quality || 'HD') + ')',
+          name: 'Vuflix',
+          title: 'Vuflix - ' + mediaType.toUpperCase() + ' (Auto)',
           url: streamUrl,
           type: 'm3u8',
           headers: {
             'User-Agent': DEFAULT_HEADERS['User-Agent'],
             'Referer': BASE_URL + '/',
+            'Origin': BASE_URL,
             'Cookie': self.sessionCookie
           }
         });
